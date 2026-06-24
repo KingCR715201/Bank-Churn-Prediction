@@ -59,34 +59,111 @@ page = st.sidebar.radio(
 
 if page == "Home":
 
-    st.title("🏦 Bank Customer Churn Prediction")
+st.title("🏦 Bank Customer Churn Prediction Dashboard")
 
-    st.markdown("""
-    ### Project Overview
+st.markdown("""
+## Welcome
 
-    This application predicts whether a customer is likely to leave the bank.
+This interactive dashboard helps banks identify customers who are likely to leave the organization and supports proactive retention strategies using Machine Learning and Explainable AI.
 
-    ### Objectives
+---
+""")
 
-    - Predict churn risk
-    - Estimate churn probability
-    - Identify churn drivers
-    - Support business retention strategies
-    - Enable scenario-based analysis
+st.subheader("🎯 Project Objectives")
 
-    ### Dataset Features
+st.markdown("""
+- Predict customer churn risk.
+- Estimate churn probability scores.
+- Identify key churn drivers.
+- Support customer retention strategies.
+- Enable scenario-based churn analysis.
+- Provide explainable predictions for business users.
+""")
 
-    - Credit Score
-    - Geography
-    - Gender
-    - Age
-    - Tenure
-    - Balance
-    - Products
-    - Credit Card Status
-    - Active Member Status
-    - Salary
-    """)
+st.subheader("📊 Dashboard Modules")
+
+st.markdown("""
+### 1️⃣ Customer Churn Risk Calculator
+Enter customer information and obtain:
+- Churn Prediction
+- Churn Probability
+- Risk Category (Low, Medium, High)
+
+### 2️⃣ Probability Distribution Dashboard
+Visualize:
+- Churn Probability Histogram
+- Distribution Analysis
+- Probability Spread
+
+### 3️⃣ Feature Importance Dashboard
+Analyze:
+- Most Important Features
+- Global Feature Importance
+- Key Drivers of Customer Churn
+
+### 4️⃣ What-If Scenario Simulator
+Simulate customer behavior changes by modifying:
+- Account Balance
+- Number of Products
+- Active Membership Status
+- Salary
+
+Observe how churn probability changes in real time.
+
+### 5️⃣ Model Performance Dashboard
+View:
+- Accuracy
+- Precision
+- Recall
+- F1 Score
+- ROC-AUC Score
+- Model Performance Summary
+""")
+
+st.subheader("🤖 Machine Learning Workflow")
+
+st.markdown("""
+1. Data Collection
+2. Data Cleaning and Preprocessing
+3. Feature Engineering
+4. Model Training
+5. Model Evaluation
+6. Explainable AI Analysis
+7. Interactive Dashboard Deployment
+""")
+
+st.subheader("📁 Dataset Information")
+
+st.markdown("""
+**Dataset Features Used**
+
+- Credit Score
+- Geography
+- Gender
+- Age
+- Tenure
+- Balance
+- Number of Products
+- Credit Card Status
+- Active Membership Status
+- Estimated Salary
+
+**Target Variable**
+
+- Exited (Customer Churn)
+""")
+
+st.subheader("💡 Business Value")
+
+st.success("""
+This solution helps financial institutions identify high-risk customers,
+reduce churn rates, improve customer retention, and support data-driven
+decision making through predictive analytics.
+""")
+
+st.info(
+    "Use the navigation panel on the left to explore different dashboard modules."
+)
 
 # ==========================================================
 # CHURN CALCULATOR
