@@ -59,46 +59,47 @@ page = st.sidebar.radio(
 
 if page == "Home":
 
+
     st.title("🏦 Bank Customer Churn Prediction Dashboard")
 
     st.markdown("""
-    ## Welcome
+## Welcome
 
-    This interactive dashboard helps banks identify customers who are likely to leave the organization and supports proactive retention strategies using Machine Learning and Explainable AI.
+This interactive dashboard helps banks identify customers who are likely to leave the organization and supports proactive retention strategies using Machine Learning and Explainable AI.
 
-    ---
-    """)
+---
+""")
 
     st.subheader("🎯 Project Objectives")
 
     st.markdown("""
-    - Predict customer churn risk.
-    - Estimate churn probability scores.
-    - Identify key churn drivers.
-    - Support customer retention strategies.
-    - Enable scenario-based churn analysis.
-    - Provide explainable predictions for business users.
-    """)
+- Predict customer churn risk.
+- Estimate churn probability scores.
+- Identify key churn drivers.
+- Support customer retention strategies.
+- Enable scenario-based churn analysis.
+- Provide explainable predictions for business users.
+""")
 
     st.subheader("📊 Dashboard Modules")
 
     st.markdown("""
-    ### 1️⃣ Customer Churn Risk Calculator
-    Enter customer information and obtain:
-    - Churn Prediction
-    - Churn Probability
-    - Risk Category (Low, Medium, High)
+### 1️⃣ Customer Churn Risk Calculator
+Enter customer information and obtain:
+- Churn Prediction
+- Churn Probability
+- Risk Category (Low, Medium, High)
 
-    ### 2️⃣ Probability Distribution Dashboard
-    Visualize:
-    - Churn Probability Histogram
-    - Distribution Analysis
-    - Probability Spread
+### 2️⃣ Probability Distribution Dashboard
+Visualize:
+- Churn Probability Histogram
+- Distribution Analysis
+- Probability Spread
 
-    ### 3️⃣ Feature Importance Dashboard
-    Analyze:
-    - Most Important Features
-    - Global Feature Importance
+### 3️⃣ Feature Importance Dashboard
+Analyze:
+- Most Important Features
+- Global Feature Importance
 - Key Drivers of Customer Churn
 
 ### 4️⃣ What-If Scenario Simulator
@@ -122,7 +123,7 @@ View:
 
     st.subheader("🤖 Machine Learning Workflow")
 
-st.markdown("""
+    st.markdown("""
 1. Data Collection
 2. Data Cleaning and Preprocessing
 3. Feature Engineering
@@ -155,7 +156,7 @@ st.markdown("""
 
     st.subheader("💡 Business Value")
 
-st.success("""
+    st.success("""
 This solution helps financial institutions identify high-risk customers,
 reduce churn rates, improve customer retention, and support data-driven
 decision making through predictive analytics.
