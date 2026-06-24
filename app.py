@@ -133,27 +133,6 @@ View:
 7. Interactive Dashboard Deployment
 """)
 
-    st.subheader("📁 Dataset Information")
-
-    st.markdown("""
-**Dataset Features Used**
-
-- Credit Score
-- Geography
-- Gender
-- Age
-- Tenure
-- Balance
-- Number of Products
-- Credit Card Status
-- Active Membership Status
-- Estimated Salary
-
-**Target Variable**
-
-- Exited (Customer Churn)
-""")
-
     st.subheader("💡 Business Value")
 
     st.success("""
