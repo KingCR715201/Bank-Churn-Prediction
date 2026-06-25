@@ -114,8 +114,6 @@ page = st.sidebar.radio(
 
     [
 
-        "🏠 Home",
-
         "📊 Dashboard",
 
         "🎯 Predict Churn",
@@ -131,62 +129,6 @@ page = st.sidebar.radio(
     ]
 
 )
-
-# ============================================================
-# HOME PAGE
-# ============================================================
-
-if page == "🏠 Home":
-
-    st.title("🏦 Bank Customer Churn Prediction")
-
-    st.markdown("---")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric(
-        "Customers",
-        len(df),
-    )
-
-    c2.metric(
-        "Features",
-        len(df.columns) - 1,
-    )
-
-    c3.metric(
-        "Best Model",
-        model_name,
-    )
-
-    c4.metric(
-        "ROC-AUC",
-        f"{metrics['ROC AUC']:.3f}",
-    )
-
-    st.markdown("---")
-
-    st.header("Project Overview")
-
-    st.write(
-        """
-This project predicts whether a customer will leave the bank using Machine Learning.
-
-### Objectives
-
-- Predict customer churn
-- Estimate churn probability
-- Explain predictions using SHAP
-- Analyze important churn drivers
-- Support customer retention strategies
-
-"""
-    )
-
-    st.subheader("Dataset Preview")
-
-    st.dataframe(df.head(), use_container_width=True)
-
 # ============================================================
 # DASHBOARD PAGE
 # ============================================================
