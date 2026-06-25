@@ -132,7 +132,7 @@ page = st.sidebar.radio(
 # ============================================================
 # DASHBOARD PAGE
 # ============================================================
-elif page == "📊 Dashboard":
+if page == "📊 Dashboard":
 
     st.title("📊 Customer Churn Dashboard")
 
