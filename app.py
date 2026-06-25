@@ -1,177 +1,322 @@
+"""
+app.py
+
+Bank Customer Churn Prediction Dashboard
+
+Author: Your Name
+
+Run:
+streamlit run app.py
+"""
+
+import json
+import joblib
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import json
-import os
-
+import plotly.express as px
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.metrics import (
     confusion_matrix,
-    ConfusionMatrixDisplay,
-    RocCurveDisplay,
     roc_curve,
     auc,
 )
 
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 
 st.set_page_config(
-    page_title="Bank Customer Churn Prediction",
+    page_title="🏦 Bank Customer Churn Prediction",
     page_icon="🏦",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# ---------------------------------------------------
+# ============================================================
 # CUSTOM CSS
-# ---------------------------------------------------
+# ============================================================
 
 st.markdown("""
 <style>
 
 .main{
-    background-color:#F7F9FC;
+    padding-top:10px;
 }
 
-h1,h2,h3{
-color:#003366;
-}
-
-.metric-container{
-background:#ffffff;
-padding:20px;
-border-radius:15px;
-box-shadow:0px 0px 10px rgba(0,0,0,0.15);
-text-align:center;
-}
-
-.sidebar .sidebar-content{
-background:#0E1117;
+div[data-testid="metric-container"]{
+    background:#f8f9fa;
+    border-radius:12px;
+    padding:18px;
+    border-left:5px solid #1f77b4;
 }
 
 </style>
-""",unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# ---------------------------------------------------
-# LOAD MODEL
-# ---------------------------------------------------
+# ============================================================
+# LOAD MODEL ARTIFACTS
+# ============================================================
 
-MODEL_DIR="models"
+@st.cache_resource
+def load_artifacts():
 
-MODEL_PATH=os.path.join(MODEL_DIR,"churn_model.pkl")
-METRICS_PATH=os.path.join(MODEL_DIR,"metrics.json")
-MODEL_NAME_PATH=os.path.join(MODEL_DIR,"model_name.pkl")
-XTEST_PATH=os.path.join(MODEL_DIR,"X_test.pkl")
-YTEST_PATH=os.path.join(MODEL_DIR,"y_test.pkl")
+    model = joblib.load("models/churn_model.pkl")
 
-model=joblib.load(MODEL_PATH)
-model_name=joblib.load(MODEL_NAME_PATH)
+    X_test = joblib.load("models/X_test.pkl")
 
-X_test=joblib.load(XTEST_PATH)
-y_test=joblib.load(YTEST_PATH)
+    y_test = joblib.load("models/y_test.pkl")
 
-with open(METRICS_PATH,"r") as f:
-    metrics=json.load(f)
+    feature_names = joblib.load(
+        "models/feature_names.pkl"
+    )
 
-# ---------------------------------------------------
+    model_name = joblib.load(
+        "models/model_name.pkl"
+    )
+
+    with open("models/metrics.json") as f:
+
+        metrics = json.load(f)
+
+    return (
+        model,
+        X_test,
+        y_test,
+        feature_names,
+        model_name,
+        metrics,
+    )
+
+
+(
+    model,
+    X_test,
+    y_test,
+    feature_names,
+    model_name,
+    metrics,
+) = load_artifacts()
+
+# ============================================================
+# LOAD DATASET
+# ============================================================
+
+@st.cache_data
+def load_dataset():
+
+    return pd.read_csv("European_Bank.csv")
+
+
+df = load_dataset()
+
+# ============================================================
 # SIDEBAR
-# ---------------------------------------------------
+# ============================================================
 
 st.sidebar.title("🏦 Navigation")
 
-page=st.sidebar.radio(
-    "Go To",
+page = st.sidebar.radio(
+
+    "Select Page",
+
     [
+
         "🏠 Home",
-        "🔮 Prediction",
+
         "📊 Dashboard",
-        "📈 Model Performance"
+
+        "🎯 Predict Churn",
+
+        "📈 Probability Analysis",
+
+        "💡 Explainable AI",
+
+        "⚙ What-if Simulator",
+
+        "📉 Model Performance",
+
     ]
+
 )
 
-# ---------------------------------------------------
+# ============================================================
 # HOME PAGE
-# ---------------------------------------------------
+# ============================================================
 
-if page=="🏠 Home":
+if page == "🏠 Home":
 
     st.title("🏦 Bank Customer Churn Prediction")
 
     st.markdown("---")
 
-    st.markdown("""
-### 📌 Project Description
+    c1, c2, c3, c4 = st.columns(4)
 
-This project predicts whether a customer is likely to leave the bank.
+    c1.metric(
+        "Customers",
+        len(df),
+    )
 
-Machine Learning models were trained on historical customer information to identify customers at risk of churn.
+    c2.metric(
+        "Features",
+        len(df.columns) - 1,
+    )
 
-The project performs:
+    c3.metric(
+        "Best Model",
+        model_name,
+    )
 
-- Data Cleaning
-- Feature Engineering
-- Model Training
-- Model Evaluation
-- Customer Churn Prediction
-- Interactive Dashboard
+    c4.metric(
+        "ROC-AUC",
+        f"{metrics['ROC AUC']:.3f}",
+    )
 
----
+    st.markdown("---")
 
-### Dataset Features
+    st.header("Project Overview")
 
-- Credit Score
-- Geography
-- Gender
-- Age
-- Tenure
-- Balance
-- Number of Products
-- Credit Card Status
-- Active Member
-- Estimated Salary
+    st.write(
+        """
+This project predicts whether a customer will leave the bank using Machine Learning.
 
----
+### Objectives
 
-### Target Variable
+- Predict customer churn
+- Estimate churn probability
+- Explain predictions using SHAP
+- Analyze important churn drivers
+- Support customer retention strategies
 
-Exited
+"""
+    )
 
-- 1 → Customer Left
-- 0 → Customer Stayed
+    st.subheader("Dataset Preview")
 
----
-""")
+    st.dataframe(df.head(), use_container_width=True)
 
-    col1,col2,col3=st.columns(3)
+# ============================================================
+# DASHBOARD PAGE
+# ============================================================
 
-    with col1:
-        st.metric("Best Model",model_name)
+elif page == "📊 Dashboard":
 
-    with col2:
-        st.metric(
-            "Accuracy",
-            f"{metrics['Accuracy']:.2%}"
+    st.title("📊 Customer Churn Dashboard")
+
+    churn_rate = df["Exited"].mean() * 100
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric(
+        "Customers",
+        len(df),
+    )
+
+    c2.metric(
+        "Churn Rate",
+        f"{churn_rate:.2f} %",
+    )
+
+    c3.metric(
+        "Accuracy",
+        f"{metrics['Accuracy']:.3f}",
+    )
+
+    c4.metric(
+        "ROC-AUC",
+        f"{metrics['ROC AUC']:.3f}",
+    )
+
+    st.markdown("---")
+
+    left, right = st.columns(2)
+
+    with left:
+
+        fig = px.histogram(
+
+            df,
+
+            x="Age",
+
+            color="Exited",
+
+            title="Age Distribution",
+
         )
 
-    with col3:
-        st.metric(
-            "ROC-AUC",
-            f"{metrics['ROC AUC']:.3f}"
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
         )
 
-# ---------------------------------------------------
-# PREDICTION PAGE
-# ---------------------------------------------------
+        fig = px.box(
 
-elif page == "🔮 Prediction":
+            df,
 
-    st.title("🔮 Bank Customer Churn Prediction")
+            x="Exited",
 
-    st.markdown("### Enter Customer Details")
+            y="Balance",
+
+            title="Balance vs Churn",
+
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+    with right:
+
+        fig = px.pie(
+
+            df,
+
+            names="Geography",
+
+            title="Customer Geography",
+
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+        fig = px.bar(
+
+            df.groupby("Gender")["Exited"]
+
+            .mean()
+
+            .reset_index(),
+
+            x="Gender",
+
+            y="Exited",
+
+            title="Gender-wise Churn Rate",
+
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+# ============================================================
+# PREDICT CHURN PAGE
+# ============================================================
+
+elif page == "🎯 Predict Churn":
+
+    st.title("🎯 Customer Churn Prediction")
+
+    st.write("Enter customer information to predict churn probability.")
 
     col1, col2 = st.columns(2)
 
@@ -179,425 +324,737 @@ elif page == "🔮 Prediction":
 
         credit_score = st.number_input(
             "Credit Score",
-            300,
-            900,
-            650
+            min_value=300,
+            max_value=900,
+            value=650,
         )
 
         geography = st.selectbox(
             "Geography",
-            ["France", "Germany", "Spain"]
+            sorted(df["Geography"].unique()),
         )
 
         gender = st.selectbox(
             "Gender",
-            ["Male", "Female"]
+            sorted(df["Gender"].unique()),
         )
 
         age = st.slider(
             "Age",
             18,
             100,
-            35
+            35,
         )
 
         tenure = st.slider(
             "Tenure",
             0,
             10,
-            5
+            5,
         )
 
     with col2:
 
         balance = st.number_input(
             "Balance",
-            0.0,
-            300000.0,
-            50000.0
+            value=50000.0,
         )
 
-        num_products = st.selectbox(
+        products = st.slider(
             "Number of Products",
-            [1,2,3,4]
+            1,
+            4,
+            2,
         )
 
-        has_card = st.selectbox(
+        card = st.selectbox(
             "Has Credit Card",
-            [0,1]
+            [0, 1],
         )
 
-        active_member = st.selectbox(
+        active = st.selectbox(
             "Is Active Member",
-            [0,1]
+            [0, 1],
         )
 
         salary = st.number_input(
             "Estimated Salary",
-            0.0,
-            300000.0,
-            100000.0
+            value=75000.0,
         )
 
-    st.markdown("---")
+    customer = pd.DataFrame({
 
-    if st.button("Predict Churn", use_container_width=True):
+        "CreditScore":[credit_score],
+        "Geography":[geography],
+        "Gender":[gender],
+        "Age":[age],
+        "Tenure":[tenure],
+        "Balance":[balance],
+        "NumOfProducts":[products],
+        "HasCrCard":[card],
+        "IsActiveMember":[active],
+        "EstimatedSalary":[salary]
 
-        # Feature Engineering
-        balance_salary_ratio = balance / (salary + 1)
+    })
 
-        products_per_tenure = num_products / (tenure + 1)
+    # -------------------------
+    # Feature Engineering
+    # -------------------------
 
-        age_tenure = age * tenure
+    customer["Balance_to_Salary_Ratio"] = (
+        customer["Balance"] /
+        (customer["EstimatedSalary"] + 1)
+    )
 
-        engagement_score = (
-            active_member * 2
-            + has_card
-            + num_products
-        )
+    customer["Products_Per_Tenure"] = (
+        customer["NumOfProducts"] /
+        (customer["Tenure"] + 1)
+    )
 
-        input_df = pd.DataFrame({
+    customer["Age_Tenure_Interaction"] = (
+        customer["Age"] *
+        customer["Tenure"]
+    )
 
-            "CreditScore":[credit_score],
-            "Geography":[geography],
-            "Gender":[gender],
-            "Age":[age],
-            "Tenure":[tenure],
-            "Balance":[balance],
-            "NumOfProducts":[num_products],
-            "HasCrCard":[has_card],
-            "IsActiveMember":[active_member],
-            "EstimatedSalary":[salary],
+    customer["Customer_Engagement_Score"] = (
+        customer["IsActiveMember"] * 2
+        + customer["HasCrCard"]
+        + customer["NumOfProducts"]
+    )
 
-            "Balance_to_Salary_Ratio":[balance_salary_ratio],
-            "Products_Per_Tenure":[products_per_tenure],
-            "Age_Tenure_Interaction":[age_tenure],
-            "Customer_Engagement_Score":[engagement_score]
+    if st.button("Predict Customer Churn"):
 
-        })
+        probability = model.predict_proba(customer)[0][1]
 
-        prediction = model.predict(input_df)[0]
+        prediction = model.predict(customer)[0]
 
-        probability = model.predict_proba(input_df)[0][1]
+        left, right = st.columns(2)
 
-        st.markdown("---")
+        with left:
 
-        st.subheader("Prediction Result")
+            st.metric(
+                "Churn Probability",
+                f"{probability:.2%}"
+            )
 
-        if prediction == 1:
+            if probability < 0.30:
 
-            st.error("⚠️ Customer is likely to CHURN")
+                st.success("🟢 Low Risk")
+
+            elif probability < 0.70:
+
+                st.warning("🟡 Medium Risk")
+
+            else:
+
+                st.error("🔴 High Risk")
+
+        with right:
+
+            fig = go.Figure()
+
+            fig.add_trace(
+
+                go.Indicator(
+
+                    mode="gauge+number",
+
+                    value=probability * 100,
+
+                    title={
+                        "text": "Risk Score"
+                    },
+
+                    gauge={
+
+                        "axis": {
+                            "range": [0, 100]
+                        },
+
+                        "steps": [
+
+                            {
+                                "range": [0, 30],
+                                "color": "green"
+                            },
+
+                            {
+                                "range": [30, 70],
+                                "color": "yellow"
+                            },
+
+                            {
+                                "range": [70, 100],
+                                "color": "red"
+                            }
+
+                        ]
+
+                    }
+
+                )
+
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+            )
+
+        st.subheader("Business Recommendation")
+
+        if probability < 0.30:
+
+            st.success("""
+Customer has a low churn risk.
+
+Recommendation:
+- Continue regular engagement
+- Offer loyalty rewards
+""")
+
+        elif probability < 0.70:
+
+            st.warning("""
+Customer has moderate churn risk.
+
+Recommendation:
+- Offer personalized promotions
+- Increase customer engagement
+""")
 
         else:
 
-            st.success("✅ Customer is likely to STAY")
+            st.error("""
+Customer has high churn risk.
 
-        st.metric(
-            "Churn Probability",
-            f"{probability:.2%}"
+Recommendation:
+- Immediate relationship manager follow-up
+- Premium retention offer
+- Personalized banking services
+""")
+
+# ============================================================
+# PROBABILITY ANALYSIS
+# ============================================================
+
+elif page == "📈 Probability Analysis":
+
+    st.title("📈 Churn Probability Distribution")
+
+    probabilities = model.predict_proba(X_test)[:,1]
+
+    tab1, tab2, tab3 = st.tabs([
+
+        "Histogram",
+
+        "Density",
+
+        "Box Plot"
+
+    ])
+
+    with tab1:
+
+        fig = px.histogram(
+
+            x=probabilities,
+
+            nbins=30,
+
+            title="Probability Histogram"
+
         )
 
-        st.progress(float(probability))
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
 
-        st.markdown("### Input Summary")
+    with tab2:
 
-        st.dataframe(
-            input_df,
+        fig = px.violin(
+
+            y=probabilities,
+
+            box=True,
+
+            points="all",
+
+            title="Probability Density"
+
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+    with tab3:
+
+        fig = px.box(
+
+            y=probabilities,
+
+            title="Probability Box Plot"
+
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+    st.metric(
+
+        "Average Churn Probability",
+
+        f"{probabilities.mean():.2%}"
+
+    )
+
+# ============================================================
+# EXPLAINABLE AI
+# ============================================================
+
+elif page == "💡 Explainable AI":
+
+    st.title("💡 Explainable AI")
+
+    classifier = model.named_steps["classifier"]
+
+    preprocessor = model.named_steps["preprocessor"]
+
+    transformed = preprocessor.transform(X_test)
+
+    feature_names = preprocessor.get_feature_names_out()
+
+    st.subheader("Top Feature Importance")
+
+    if hasattr(classifier, "feature_importances_"):
+
+        importance = pd.DataFrame({
+
+            "Feature": feature_names,
+
+            "Importance": classifier.feature_importances_
+
+        }).sort_values(
+
+            "Importance",
+
+            ascending=False
+
+        )
+
+    elif hasattr(classifier, "coef_"):
+
+        importance = pd.DataFrame({
+
+            "Feature": feature_names,
+
+            "Importance": np.abs(classifier.coef_[0])
+
+        }).sort_values(
+
+            "Importance",
+
+            ascending=False
+
+        )
+
+    else:
+
+        importance = None
+
+    if importance is not None:
+
+        fig = px.bar(
+
+            importance.head(20),
+
+            x="Importance",
+
+            y="Feature",
+
+            orientation="h",
+
+            color="Importance",
+
+            title="Top 20 Features"
+
+        )
+
+        st.plotly_chart(
+
+            fig,
+
             use_container_width=True
-        )
 
-# ---------------------------------------------------
-# DASHBOARD
-# ---------------------------------------------------
-
-elif page == "📊 Dashboard":
-
-    st.title("📊 Customer Churn Dashboard")
-
-    st.markdown("### Dataset Overview")
-
-    df = X_test.copy()
-    df["Exited"] = y_test.values
-
-    st.dataframe(df.head(), use_container_width=True)
-
-    st.markdown("---")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("Customers", len(df))
-
-    with col2:
-        st.metric("Churned", int(df["Exited"].sum()))
-
-    with col3:
-        st.metric("Retained", int((df["Exited"] == 0).sum()))
-
-    with col4:
-        st.metric(
-            "Churn Rate",
-            f"{df['Exited'].mean()*100:.2f}%"
         )
 
     st.markdown("---")
 
-    col1, col2 = st.columns(2)
+    st.subheader("SHAP Summary Plot")
 
-    # -----------------------
-    # Churn Distribution
-    # -----------------------
+    try:
 
-    with col1:
+        import shap
 
-        fig, ax = plt.subplots(figsize=(5,4))
+        if hasattr(classifier, "feature_importances_"):
 
-        sns.countplot(
-            data=df,
-            x="Exited",
-            palette="Set2",
-            ax=ax
-        )
+            explainer = shap.TreeExplainer(classifier)
 
-        ax.set_xticklabels(["Stayed","Churned"])
+            shap_values = explainer.shap_values(transformed)
 
-        ax.set_title("Customer Churn Distribution")
+            fig, ax = plt.subplots(figsize=(10,6))
 
-        st.pyplot(fig)
+            shap.summary_plot(
 
-    # -----------------------
-    # Gender Distribution
-    # -----------------------
+                shap_values,
 
-    with col2:
+                transformed,
 
-        if "Gender" in df.columns:
+                feature_names=feature_names,
 
-            fig, ax = plt.subplots(figsize=(5,4))
+                show=False
 
-            sns.countplot(
-                data=df,
-                x="Gender",
-                hue="Exited",
-                palette="viridis",
-                ax=ax
             )
-
-            ax.set_title("Gender vs Churn")
 
             st.pyplot(fig)
 
-    st.markdown("---")
+        else:
 
-    col1, col2 = st.columns(2)
-
-    # -----------------------
-    # Geography
-    # -----------------------
-
-    with col1:
-
-        if "Geography" in df.columns:
-
-            fig, ax = plt.subplots(figsize=(6,4))
-
-            sns.countplot(
-                data=df,
-                x="Geography",
-                hue="Exited",
-                palette="coolwarm",
-                ax=ax
+            st.info(
+                "SHAP Summary is available for tree-based models."
             )
 
-            ax.set_title("Geography vs Churn")
+    except Exception as e:
 
-            st.pyplot(fig)
+        st.error(e)
 
-    # -----------------------
-    # Age Distribution
-    # -----------------------
+# ============================================================
+# WHAT IF SIMULATOR
+# ============================================================
 
-    with col2:
+elif page == "⚙ What-if Simulator":
 
-        fig, ax = plt.subplots(figsize=(6,4))
+    st.title("⚙ What-if Scenario Simulator")
 
-        sns.histplot(
-            data=df,
-            x="Age",
-            hue="Exited",
-            kde=True,
-            palette="Set1",
-            ax=ax
-        )
+    sample = X_test.iloc[[0]].copy()
 
-        ax.set_title("Age Distribution")
+    balance = st.slider(
 
-        st.pyplot(fig)
+        "Balance",
 
-    st.markdown("---")
+        0,
 
-    col1, col2 = st.columns(2)
+        250000,
 
-    # -----------------------
-    # Balance
-    # -----------------------
+        int(sample["Balance"].iloc[0]),
 
-    with col1:
+        step=1000
 
-        fig, ax = plt.subplots(figsize=(6,4))
+    )
 
-        sns.boxplot(
-            data=df,
-            x="Exited",
-            y="Balance",
-            palette="Set3",
-            ax=ax
-        )
+    salary = st.slider(
 
-        ax.set_xticklabels(["Stayed","Churned"])
+        "Salary",
 
-        ax.set_title("Balance vs Churn")
+        0,
 
-        st.pyplot(fig)
+        250000,
 
-    # -----------------------
-    # Active Member
-    # -----------------------
+        int(sample["EstimatedSalary"].iloc[0]),
 
-    with col2:
+        step=1000
 
-        fig, ax = plt.subplots(figsize=(6,4))
+    )
 
-        sns.countplot(
-            data=df,
-            x="IsActiveMember",
-            hue="Exited",
-            palette="Dark2",
-            ax=ax
-        )
+    products = st.slider(
 
-        ax.set_title("Active Member vs Churn")
+        "Products",
 
-        st.pyplot(fig)
+        1,
 
-# ---------------------------------------------------
+        4,
+
+        int(sample["NumOfProducts"].iloc[0])
+
+    )
+
+    active = st.selectbox(
+
+        "Active Member",
+
+        [0,1],
+
+        index=int(sample["IsActiveMember"].iloc[0])
+
+    )
+
+    sample["Balance"] = balance
+
+    sample["EstimatedSalary"] = salary
+
+    sample["NumOfProducts"] = products
+
+    sample["IsActiveMember"] = active
+
+    sample["Balance_to_Salary_Ratio"] = (
+
+        sample["Balance"] /
+
+        (sample["EstimatedSalary"]+1)
+
+    )
+
+    sample["Products_Per_Tenure"] = (
+
+        sample["NumOfProducts"] /
+
+        (sample["Tenure"]+1)
+
+    )
+
+    sample["Age_Tenure_Interaction"] = (
+
+        sample["Age"] *
+
+        sample["Tenure"]
+
+    )
+
+    sample["Customer_Engagement_Score"] = (
+
+        sample["IsActiveMember"]*2
+
+        +
+
+        sample["HasCrCard"]
+
+        +
+
+        sample["NumOfProducts"]
+
+    )
+
+    probability = model.predict_proba(
+
+        sample
+
+    )[0][1]
+
+    st.metric(
+
+        "Updated Churn Probability",
+
+        f"{probability:.2%}"
+
+    )
+
+# ============================================================
 # MODEL PERFORMANCE
-# ---------------------------------------------------
+# ============================================================
 
-elif page == "📈 Model Performance":
+elif page == "📉 Model Performance":
 
-    st.title("📈 Model Performance")
+    st.title("📉 Model Performance")
 
-    st.markdown("### Evaluation Metrics")
+    c1,c2,c3,c4,c5 = st.columns(5)
 
-    col1, col2, col3 = st.columns(3)
+    c1.metric(
 
-    with col1:
-        st.metric(
-            "Accuracy",
-            f"{metrics['Accuracy']:.2%}"
-        )
+        "Accuracy",
 
-        st.metric(
-            "Precision",
-            f"{metrics['Precision']:.2%}"
-        )
+        f"{metrics['Accuracy']:.3f}"
 
-    with col2:
-        st.metric(
-            "Recall",
-            f"{metrics['Recall']:.2%}"
-        )
+    )
 
-        st.metric(
-            "F1 Score",
-            f"{metrics['F1 Score']:.2%}"
-        )
+    c2.metric(
 
-    with col3:
-        st.metric(
-            "ROC AUC",
-            f"{metrics['ROC AUC']:.3f}"
-        )
+        "Precision",
 
-        st.metric(
-            "Best Model",
-            model_name
-        )
+        f"{metrics['Precision']:.3f}"
+
+    )
+
+    c3.metric(
+
+        "Recall",
+
+        f"{metrics['Recall']:.3f}"
+
+    )
+
+    c4.metric(
+
+        "F1 Score",
+
+        f"{metrics['F1 Score']:.3f}"
+
+    )
+
+    c5.metric(
+
+        "ROC AUC",
+
+        f"{metrics['ROC AUC']:.3f}"
+
+    )
 
     st.markdown("---")
 
-    st.subheader("Confusion Matrix")
+    prediction = model.predict(X_test)
 
-    y_pred = model.predict(X_test)
+    probability = model.predict_proba(X_test)[:,1]
+
+    cm = confusion_matrix(
+
+        y_test,
+
+        prediction
+
+    )
 
     fig, ax = plt.subplots(figsize=(6,5))
 
-    ConfusionMatrixDisplay.from_predictions(
-        y_test,
-        y_pred,
+    sns.heatmap(
+
+        cm,
+
+        annot=True,
+
+        fmt="d",
+
         cmap="Blues",
+
         ax=ax
+
     )
+
+    ax.set_title("Confusion Matrix")
 
     st.pyplot(fig)
 
     st.markdown("---")
 
-    st.subheader("ROC Curve")
+    fpr,tpr,_ = roc_curve(
 
-    y_prob = model.predict_proba(X_test)[:,1]
-
-    fpr, tpr, _ = roc_curve(
         y_test,
-        y_prob
+
+        probability
+
     )
 
-    roc_auc = auc(fpr, tpr)
+    roc_auc = auc(
 
-    fig, ax = plt.subplots(figsize=(6,5))
-
-    ax.plot(
         fpr,
-        tpr,
-        label=f"AUC = {roc_auc:.3f}"
+
+        tpr
+
     )
 
-    ax.plot([0,1],[0,1],"k--")
+    fig = go.Figure()
 
-    ax.set_xlabel("False Positive Rate")
+    fig.add_trace(
 
-    ax.set_ylabel("True Positive Rate")
+        go.Scatter(
 
-    ax.set_title("ROC Curve")
+            x=fpr,
 
-    ax.legend()
+            y=tpr,
 
-    st.pyplot(fig)
+            mode="lines",
+
+            name=f"AUC = {roc_auc:.3f}"
+
+        )
+
+    )
+
+    fig.add_trace(
+
+        go.Scatter(
+
+            x=[0,1],
+
+            y=[0,1],
+
+            mode="lines",
+
+            line=dict(dash="dash"),
+
+            name="Random"
+
+        )
+
+    )
+
+    fig.update_layout(
+
+        title="ROC Curve",
+
+        xaxis_title="False Positive Rate",
+
+        yaxis_title="True Positive Rate"
+
+    )
+
+    st.plotly_chart(
+
+        fig,
+
+        use_container_width=True
+
+    )
 
     st.markdown("---")
 
-    st.subheader("Model Information")
+    output = X_test.copy()
 
-    st.write(f"**Selected Model :** {model_name}")
+    output["Actual"] = y_test
 
-    st.write(f"**Test Samples :** {len(X_test)}")
+    output["Prediction"] = prediction
 
-    st.write(f"**Number of Features :** {X_test.shape[1]}")
+    output["Probability"] = probability
 
-    st.markdown("---")
-
-    st.subheader("Download Evaluation Metrics")
-
-    metrics_json = json.dumps(
-        metrics,
-        indent=4
-    )
+    csv = output.to_csv(index=False)
 
     st.download_button(
-        label="📥 Download metrics.json",
-        data=metrics_json,
-        file_name="metrics.json",
-        mime="application/json"
+
+        "⬇ Download Predictions",
+
+        csv,
+
+        "predictions.csv",
+
+        "text/csv"
+
     )
 
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.markdown("---")
+
+st.caption(
+
+"""
+Bank Customer Churn Prediction Dashboard
+
+Developed using:
+
+• Python
+
+• Scikit-Learn
+
+• Plotly
+
+• Streamlit
+
+• SHAP Explainable AI
+"""
+
+)
