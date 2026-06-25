@@ -128,6 +128,10 @@ section.main {
     margin-bottom: 24px;
 }
 
+.page-banner p {
+    color: black !important;
+}
+
 .section-card {
     border-radius: 20px;
     padding: 22px;
