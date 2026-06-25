@@ -208,20 +208,7 @@ df = load_dataset()
 # SIDEBAR
 # ============================================================
 
-st.sidebar.title("🏦 Navigation")
-
-st.sidebar.markdown(
-    f"""
-    <div style='padding: 14px 0;'>
-        <h3 style='color:#ffffff;margin-bottom:10px;'>Quick Summary</h3>
-        <p style='color:#cbd5e1;margin:0;'>• <strong>Records:</strong> {len(df)}</p>
-        <p style='color:#cbd5e1;margin:0;'>• <strong>Features:</strong> {len(df.columns) - 1}</p>
-        <p style='color:#cbd5e1;margin:0;'>• <strong>Best Model:</strong> {model_name}</p>
-        <p style='color:#cbd5e1;margin:0;'>• <strong>ROC AUC:</strong> {metrics['ROC AUC']:.3f}</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+st.sidebar.title("Navigation")
 
 page = st.sidebar.radio(
 
@@ -247,13 +234,15 @@ page = st.sidebar.radio(
 
 st.sidebar.markdown(
     f"""
-    ### Quick Summary
-    - **Records:** {len(df)}
-    - **Features:** {len(df.columns) - 1}
-    - **Best Model:** {model_name}
-    - **ROC AUC:** {metrics['ROC AUC']:.3f}
+    <div style='color: #ffffff;'>
+        <h3 style='color: #ffffff; margin-bottom: 10px;'>Quick Summary</h3>
+        <p style='color: #ffffff; margin: 0;'><strong>Records:</strong> {len(df)}</p>
+        <p style='color: #ffffff; margin: 0;'><strong>Features:</strong> {len(df.columns) - 1}</p>
+        <p style='color: #ffffff; margin: 0;'><strong>Best Model:</strong> {model_name}</p>
+        <p style='color: #ffffff; margin: 0;'><strong>ROC AUC:</strong> {metrics['ROC AUC']:.3f}</p>
+    </div>
     """
-)
+, unsafe_allow_html=True)
 
 # ============================================================
 # DASHBOARD PAGE
@@ -515,6 +504,18 @@ elif page == "🎯 Predict Churn":
                 f"{probability:.2%}"
             )
             st.write("---")
+
+            if probability < 0.30:
+
+                st.success("🟢 Low Risk")
+
+            elif probability < 0.70:
+
+                st.warning("🟡 Medium Risk")
+
+            else:
+
+                st.error("🔴 High Risk")
 
             if probability < 0.30:
 
