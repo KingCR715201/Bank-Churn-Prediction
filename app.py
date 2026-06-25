@@ -313,21 +313,21 @@ elif page == "🎯 Predict Churn":
         )
 
     # ============================================================
-# CREATE CUSTOMER DATA
-# ============================================================
+    # CREATE CUSTOMER DATA
+    # ============================================================
 
-customer = pd.DataFrame(index=[0])
+    customer = pd.DataFrame(index=[0])
 
-customer["CreditScore"] = credit_score
-customer["Geography"] = geography
-customer["Gender"] = gender
-customer["Age"] = age
-customer["Tenure"] = tenure
-customer["Balance"] = balance
-customer["NumOfProducts"] = products
-customer["HasCrCard"] = card
-customer["IsActiveMember"] = active
-customer["EstimatedSalary"] = salary
+    customer["CreditScore"] = credit_score
+    customer["Geography"] = geography
+    customer["Gender"] = gender
+    customer["Age"] = age
+    customer["Tenure"] = tenure
+    customer["Balance"] = balance
+    customer["NumOfProducts"] = products
+    customer["HasCrCard"] = card
+    customer["IsActiveMember"] = active
+    customer["EstimatedSalary"] = salary
 
 # ============================================================
 # FEATURE ENGINEERING
