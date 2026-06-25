@@ -1,14 +1,3 @@
-"""
-app.py
-
-Bank Customer Churn Prediction Dashboard
-
-Author: Your Name
-
-Run:
-streamlit run app.py
-"""
-
 import json
 import joblib
 import streamlit as st
