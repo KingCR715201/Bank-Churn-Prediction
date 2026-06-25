@@ -1,14 +1,3 @@
-"""
-app.py
-
-Bank Customer Churn Prediction Dashboard
-
-Author: Your Name
-
-Run:
-streamlit run app.py
-"""
-
 import json
 import joblib
 import streamlit as st
@@ -382,124 +371,116 @@ elif page == "🎯 Predict Churn":
             value=75000.0,
         )
 
-    customer = pd.DataFrame({
+    # ============================================================
+# CREATE CUSTOMER DATA
+# ============================================================
 
-        "CreditScore":[credit_score],
-        "Geography":[geography],
-        "Gender":[gender],
-        "Age":[age],
-        "Tenure":[tenure],
-        "Balance":[balance],
-        "NumOfProducts":[products],
-        "HasCrCard":[card],
-        "IsActiveMember":[active],
-        "EstimatedSalary":[salary]
+customer = pd.DataFrame(index=[0])
 
-    })
+customer["CreditScore"] = credit_score
+customer["Geography"] = geography
+customer["Gender"] = gender
+customer["Age"] = age
+customer["Tenure"] = tenure
+customer["Balance"] = balance
+customer["NumOfProducts"] = products
+customer["HasCrCard"] = card
+customer["IsActiveMember"] = active
+customer["EstimatedSalary"] = salary
 
-    # -------------------------
-    # Feature Engineering
-    # -------------------------
+# ============================================================
+# FEATURE ENGINEERING
+# ============================================================
 
-    customer["Balance_to_Salary_Ratio"] = (
-        customer["Balance"] /
-        (customer["EstimatedSalary"] + 1)
+customer["Balance_to_Salary_Ratio"] = (
+    customer["Balance"] /
+    (customer["EstimatedSalary"] + 1)
+)
+
+customer["Products_Per_Tenure"] = (
+    customer["NumOfProducts"] /
+    (customer["Tenure"] + 1)
+)
+
+customer["Age_Tenure_Interaction"] = (
+    customer["Age"] *
+    customer["Tenure"]
+)
+
+customer["Customer_Engagement_Score"] = (
+    customer["IsActiveMember"] * 2
+    + customer["HasCrCard"]
+    + customer["NumOfProducts"]
+)
+
+# ============================================================
+# MATCH TRAINING COLUMNS
+# ============================================================
+
+expected_columns = list(
+    model.named_steps["preprocessor"].feature_names_in_
+)
+
+# Add any missing columns
+for col in expected_columns:
+    if col not in customer.columns:
+        customer[col] = 0
+
+# Remove extra columns
+customer = customer[expected_columns]
+
+# ============================================================
+# PREDICTION
+# ============================================================
+
+if st.button("Predict Customer Churn"):
+
+    probability = float(
+        model.predict_proba(customer)[0][1]
     )
 
-    customer["Products_Per_Tenure"] = (
-        customer["NumOfProducts"] /
-        (customer["Tenure"] + 1)
+    prediction = int(
+        model.predict(customer)[0]
     )
 
-    customer["Age_Tenure_Interaction"] = (
-        customer["Age"] *
-        customer["Tenure"]
-    )
+    col1, col2 = st.columns(2)
 
-    customer["Customer_Engagement_Score"] = (
-        customer["IsActiveMember"] * 2
-        + customer["HasCrCard"]
-        + customer["NumOfProducts"]
-    )
+    with col1:
 
-    if st.button("Predict Customer Churn"):
+        st.metric(
+            "Churn Probability",
+            f"{probability:.2%}"
+        )
 
-        probability = model.predict_proba(customer)[0][1]
+        if probability < 0.30:
+            st.success("🟢 Low Risk")
+        elif probability < 0.70:
+            st.warning("🟡 Medium Risk")
+        else:
+            st.error("🔴 High Risk")
 
-        prediction = model.predict(customer)[0]
+    with col2:
 
-        left, right = st.columns(2)
-
-        with left:
-
-            st.metric(
-                "Churn Probability",
-                f"{probability:.2%}"
+        fig = go.Figure(
+            go.Indicator(
+                mode="gauge+number",
+                value=probability * 100,
+                title={"text": "Risk Score"},
+                gauge={
+                    "axis": {"range": [0, 100]},
+                    "steps": [
+                        {"range": [0, 30], "color": "green"},
+                        {"range": [30, 70], "color": "yellow"},
+                        {"range": [70, 100], "color": "red"},
+                    ],
+                },
             )
+        )
 
-            if probability < 0.30:
-
-                st.success("🟢 Low Risk")
-
-            elif probability < 0.70:
-
-                st.warning("🟡 Medium Risk")
-
-            else:
-
-                st.error("🔴 High Risk")
-
-        with right:
-
-            fig = go.Figure()
-
-            fig.add_trace(
-
-                go.Indicator(
-
-                    mode="gauge+number",
-
-                    value=probability * 100,
-
-                    title={
-                        "text": "Risk Score"
-                    },
-
-                    gauge={
-
-                        "axis": {
-                            "range": [0, 100]
-                        },
-
-                        "steps": [
-
-                            {
-                                "range": [0, 30],
-                                "color": "green"
-                            },
-
-                            {
-                                "range": [30, 70],
-                                "color": "yellow"
-                            },
-
-                            {
-                                "range": [70, 100],
-                                "color": "red"
-                            }
-
-                        ]
-
-                    }
-
-                )
-
-            )
-
-            st.plotly_chart(
-                fig,
-                use_container_width=True,
-            )
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
 
         st.subheader("Business Recommendation")
 
