@@ -1,32 +1,29 @@
-# ==========================================================
-# churn_model.py
-# Bank Customer Churn Prediction System
-# ==========================================================
-
 import os
-import joblib
 import warnings
+import json
+import joblib
+import logging
+
 import numpy as np
 import pandas as pd
 
-warnings.filterwarnings("ignore")
-
-from sklearn.model_selection import (
-    train_test_split,
-    StratifiedKFold,
-    cross_val_score
-)
+import matplotlib.pyplot as plt
+import seaborn as sns
+import shap
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
-
-from sklearn.preprocessing import (
-    OneHotEncoder,
-    StandardScaler
+from sklearn.model_selection import (
+    train_test_split,
+    StratifiedKFold,
+    cross_val_score,
+    GridSearchCV,
 )
-
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -34,497 +31,417 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
     classification_report,
-    confusion_matrix
+    ConfusionMatrixDisplay,
+    RocCurveDisplay,
 )
 
-from sklearn.ensemble import (
-    RandomForestClassifier
+try:
+    from xgboost import XGBClassifier
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+
+warnings.filterwarnings("ignore")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-import shap
-import matplotlib.pyplot as plt
+DATASET = "European_Bank.csv"
+MODEL_DIR = "models"
 
-# ==========================================================
-# CONFIG
-# ==========================================================
+os.makedirs(MODEL_DIR, exist_ok=True)
 
-MODEL_PATH = "best_model.pkl"
-DATA_PATH = "C:/Users/paras/OneDrive/My Projects or codes/Unified Mentor Project 1/European_Bank.csv"
 
-# ==========================================================
-# FEATURE ENGINEERING
-# ==========================================================
+class BankChurnTrainer:
 
-def feature_engineering(df):
+    def __init__(self, dataset_path):
+        self.dataset_path = dataset_path
+        self.df = None
+        self.pipeline = None
+        self.best_model = None
+        self.best_model_name = None
+        self.metrics = {}
+        self.feature_names = None
+        self.preprocessor = None
+        self.X_test = None
+        self.y_test = None
 
-    df["Balance_to_Salary_Ratio"] = (
-        df["Balance"] /
-        (df["EstimatedSalary"] + 1)
-    )
+    # ============================================================
+    # Load Dataset
+    # ============================================================
 
-    df["Products_Per_Tenure"] = (
-        df["NumOfProducts"] /
-        (df["Tenure"] + 1)
-    )
+    def load_dataset(self):
+        logging.info("Loading Dataset...")
+        self.df = pd.read_csv(self.dataset_path)
+        logging.info(f"Dataset Shape : {self.df.shape}")
+        return self.df
 
-    df["Age_Tenure_Interaction"] = (
-        df["Age"] *
-        df["Tenure"]
-    )
+    # ============================================================
+    # Validate Dataset
+    # ============================================================
 
-    df["Customer_Engagement_Score"] = (
-        df["HasCrCard"] +
-        df["IsActiveMember"] +
-        df["NumOfProducts"]
-    )
-
-    return df
-
-# ==========================================================
-# LOAD DATA
-# ==========================================================
-
-def load_data(filepath):
-
-    df = pd.read_csv(filepath)
-
-    columns_to_drop = [
-    "CustomerId",
-    "Surname",
-    "Year"
-    ]
-
-    for col in columns_to_drop:
-        if col in df.columns:
-            df.drop(col, axis=1, inplace=True)
-
-        df = feature_engineering(df)
-    return df
-
-# ==========================================================
-# PREPROCESSOR
-# ==========================================================
-
-def build_preprocessor(X):
-
-    categorical_features = [
-        "Geography",
-        "Gender"
-    ]
-
-    numerical_features = [
-        col for col in X.columns
-        if col not in categorical_features
-    ]
-
-    numeric_transformer = Pipeline(
-        steps=[
-            (
-                "imputer",
-                SimpleImputer(strategy="median")
-            ),
-            (
-                "scaler",
-                StandardScaler()
-            )
+    def validate_dataset(self):
+        required = [
+            "CreditScore",
+            "Geography",
+            "Gender",
+            "Age",
+            "Tenure",
+            "Balance",
+            "NumOfProducts",
+            "HasCrCard",
+            "IsActiveMember",
+            "EstimatedSalary",
+            "Exited",
         ]
-    )
+        missing = [c for c in required if c not in self.df.columns]
+        if missing:
+            raise ValueError(f"Missing Columns : {missing}")
+        logging.info("Dataset Validation Passed")
 
-    categorical_transformer = Pipeline(
-        steps=[
-            (
-                "imputer",
-                SimpleImputer(strategy="most_frequent")
-            ),
-            (
-                "encoder",
-                OneHotEncoder(
-                    handle_unknown="ignore"
-                )
-            )
-        ]
-    )
+    # ============================================================
+    # Data Cleaning
+    # ============================================================
 
-    preprocessor = ColumnTransformer(
-        transformers=[
-            (
-                "num",
-                numeric_transformer,
-                numerical_features
-            ),
-            (
-                "cat",
-                categorical_transformer,
-                categorical_features
-            )
-        ]
-    )
-
-    return preprocessor
-
-# ==========================================================
-# TRAIN MODEL
-# ==========================================================
-
-def train_model(filepath):
-
-    print("Loading Dataset...")
-
-    df = load_data(filepath)
-
-    X = df.drop("Exited", axis=1)
-    y = df["Exited"]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.20,
-        stratify=y,
-        random_state=42
-    )
-
-    preprocessor = build_preprocessor(X)
-
-    model = RandomForestClassifier(
-        n_estimators=300,
-        max_depth=10,
-        random_state=42
-    )
-
-    pipeline = Pipeline(
-        steps=[
-            ("preprocessor", preprocessor),
-            ("classifier", model)
-        ]
-    )
-
-    print("Training Model...")
-
-    pipeline.fit(
-        X_train,
-        y_train
-    )
-
-    evaluate_model(
-        pipeline,
-        X_test,
-        y_test
-    )
-
-    save_model(pipeline)
-
-    return pipeline
-
-# ==========================================================
-# EVALUATION
-# ==========================================================
-
-def evaluate_model(
-        model,
-        X_test,
-        y_test
-):
-
-    preds = model.predict(X_test)
-
-    probs = model.predict_proba(
-        X_test
-    )[:, 1]
-
-    accuracy = accuracy_score(
-        y_test,
-        preds
-    )
-
-    precision = precision_score(
-        y_test,
-        preds
-    )
-
-    recall = recall_score(
-        y_test,
-        preds
-    )
-
-    f1 = f1_score(
-        y_test,
-        preds
-    )
-
-    auc = roc_auc_score(
-        y_test,
-        probs
-    )
-
-    print("\nMODEL PERFORMANCE")
-    print("-" * 40)
-
-    print(
-        f"Accuracy  : {accuracy:.4f}"
-    )
-
-    print(
-        f"Precision : {precision:.4f}"
-    )
-
-    print(
-        f"Recall    : {recall:.4f}"
-    )
-
-    print(
-        f"F1 Score  : {f1:.4f}"
-    )
-
-    print(
-        f"ROC-AUC   : {auc:.4f}"
-    )
-
-    print("\nClassification Report\n")
-
-    print(
-        classification_report(
-            y_test,
-            preds
+    def clean_dataset(self):
+        logging.info("Cleaning Dataset...")
+        remove = ["RowNumber", "CustomerId", "Surname"]
+        self.df.drop(
+            columns=[c for c in remove if c in self.df.columns],
+            inplace=True,
+            errors="ignore",
         )
-    )
+        self.df.drop_duplicates(inplace=True)
+        for column in self.df.columns:
+            if self.df[column].dtype == object or pd.api.types.is_string_dtype(self.df[column]):
+                self.df[column].fillna(self.df[column].mode()[0], inplace=True)
+            else:
+                self.df[column].fillna(self.df[column].median(), inplace=True)
+        logging.info("Cleaning Complete")
 
-    print("\nConfusion Matrix")
+    # ============================================================
+    # Feature Engineering
+    # ============================================================
 
-    print(
-        confusion_matrix(
-            y_test,
-            preds
+    def feature_engineering(self):
+        logging.info("Creating Features...")
+        self.df["Balance_to_Salary_Ratio"] = self.df["Balance"] / (self.df["EstimatedSalary"] + 1)
+        self.df["Products_Per_Tenure"] = self.df["NumOfProducts"] / (self.df["Tenure"] + 1)
+        self.df["Age_Tenure_Interaction"] = self.df["Age"] * self.df["Tenure"]
+        self.df["Customer_Engagement_Score"] = (
+            self.df["IsActiveMember"] * 2 + self.df["HasCrCard"] + self.df["NumOfProducts"]
         )
-    )
+        logging.info("Feature Engineering Complete")
 
-# ==========================================================
-# SAVE MODEL
-# ==========================================================
+    # ============================================================
+    # Dataset Summary
+    # ============================================================
 
-def save_model(model):
+    def summary(self):
+        logging.info("=" * 60)
+        logging.info("Dataset Summary")
+        logging.info("=" * 60)
+        print(self.df.info())
+        print(self.df.describe())
+        print(self.df.head())
 
-    joblib.dump(
-        model,
-        MODEL_PATH
-    )
+    # ============================================================
+    # Missing Values
+    # ============================================================
 
-    print(
-        f"\nModel Saved -> {MODEL_PATH}"
-    )
+    def missing_values(self):
+        print(self.df.isna().sum().sort_values(ascending=False))
 
-# ==========================================================
-# LOAD MODEL
-# ==========================================================
+    # ============================================================
+    # Exploratory Data Analysis
+    # ============================================================
 
-def load_model():
-    return joblib.load("best_model.pkl")
+    def perform_eda(self):
+        logging.info("Generating EDA...")
+        plt.figure(figsize=(6, 4))
+        sns.countplot(data=self.df, x="Exited")
+        plt.title("Churn Distribution")
+        plt.show()
 
-# ==========================================================
-# RISK CATEGORY
-# ==========================================================
+        plt.figure(figsize=(8, 5))
+        sns.countplot(data=self.df, x="Geography", hue="Exited")
+        plt.title("Geography-wise Churn")
+        plt.show()
 
-def get_risk_level(probability):
+        plt.figure(figsize=(6, 4))
+        sns.countplot(data=self.df, x="Gender", hue="Exited")
+        plt.title("Gender-wise Churn")
+        plt.show()
 
-    if probability <= 0.30:
-        return "Low Risk"
+        plt.figure(figsize=(7, 4))
+        sns.histplot(self.df["Age"], bins=30, kde=True)
+        plt.title("Age Distribution")
+        plt.show()
 
-    elif probability <= 0.70:
-        return "Medium Risk"
+        plt.figure(figsize=(7, 4))
+        sns.histplot(self.df["Balance"], bins=30, kde=True)
+        plt.title("Balance Distribution")
+        plt.show()
 
-    else:
-        return "High Risk"
+        plt.figure(figsize=(14, 8))
+        sns.heatmap(self.df.corr(numeric_only=True), cmap="coolwarm", annot=True)
+        plt.title("Correlation Heatmap")
+        plt.show()
 
-# ==========================================================
-# PREDICTION FUNCTION
-# ==========================================================
+    # ============================================================
+    # Data Preprocessing
+    # ============================================================
 
-def predict_customer(
-        model,
-        customer_data
-):
+    def preprocess_data(self):
+        logging.info("Preparing data for training...")
+        X = self.df.drop(columns=["Exited"])
+        y = self.df["Exited"]
+        categorical_features = X.select_dtypes(include=["object"]).columns.tolist()
+        numerical_features = X.select_dtypes(exclude=["object"]).columns.tolist()
+        numeric_transformer = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
+            ]
+        )
+        categorical_transformer = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("encoder", OneHotEncoder(handle_unknown="ignore")),
+            ]
+        )
+        self.preprocessor = ColumnTransformer(
+            transformers=[
+                ("num", numeric_transformer, numerical_features),
+                ("cat", categorical_transformer, categorical_features),
+            ]
+        )
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=0.20,
+            stratify=y,
+            random_state=42,
+        )
+        self.feature_names = X.columns.tolist()
+        return X_train, X_test, y_train, y_test
 
-    df = pd.DataFrame(
-        [customer_data]
-    )
+    # ============================================================
+    # Build Models
+    # ============================================================
 
-    df = feature_engineering(df)
+    def build_models(self):
+        models = {
+            "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+            "Decision Tree": DecisionTreeClassifier(random_state=42),
+            "Random Forest": RandomForestClassifier(n_estimators=300, random_state=42),
+            "Gradient Boosting": GradientBoostingClassifier(random_state=42),
+        }
+        if XGBOOST_AVAILABLE:
+            models["XGBoost"] = XGBClassifier(random_state=42, eval_metric="logloss")
+        return models
 
-    probability = model.predict_proba(
-        df
-    )[0][1]
+    # ============================================================
+    # Train Models
+    # ============================================================
 
-    prediction = model.predict(
-        df
-    )[0]
+    def train_models(self):
+        X_train, X_test, y_train, y_test = self.preprocess_data()
+        models = self.build_models()
+        results = []
+        best_auc = 0
+        for name, classifier in models.items():
+            logging.info(f"Training {name}")
+            pipeline = Pipeline(
+                steps=[
+                    ("preprocessor", self.preprocessor),
+                    ("classifier", classifier),
+                ]
+            )
+            pipeline.fit(X_train, y_train)
+            prediction = pipeline.predict(X_test)
+            probability = pipeline.predict_proba(X_test)[:, 1]
+            accuracy = accuracy_score(y_test, prediction)
+            precision = precision_score(y_test, prediction)
+            recall = recall_score(y_test, prediction)
+            f1 = f1_score(y_test, prediction)
+            auc_value = roc_auc_score(y_test, probability)
+            results.append({
+                "Model": name,
+                "Accuracy": accuracy,
+                "Precision": precision,
+                "Recall": recall,
+                "F1 Score": f1,
+                "ROC AUC": auc_value,
+            })
+            if auc_value > best_auc:
+                best_auc = auc_value
+                self.best_model = pipeline
+                self.best_model_name = name
+                self.X_test = X_test
+                self.y_test = y_test
+        results = pd.DataFrame(results).sort_values("ROC AUC", ascending=False)
+        logging.info("\nModel Comparison")
+        print(results)
+        return results
 
-    risk = get_risk_level(
-        probability
-    )
+    # ============================================================
+    # Cross Validation
+    # ============================================================
 
-    return {
+    def cross_validation(self):
+        logging.info("Running Cross Validation")
+        X = self.df.drop(columns=["Exited"])
+        y = self.df["Exited"]
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        scores = cross_val_score(self.best_model, X, y, cv=cv, scoring="roc_auc")
+        logging.info(f"Average ROC-AUC : {scores.mean():.4f}")
+        print(scores)
 
-        "prediction": int(prediction),
+    # ============================================================
+    # Hyperparameter Tuning
+    # ============================================================
 
-        "probability":
-            round(
-                probability * 100,
-                2
-            ),
+    def hyperparameter_tuning(self):
+        if self.best_model_name != "Random Forest":
+            logging.info("Skipping tuning (only Random Forest).")
+            return
+        logging.info("Running GridSearchCV...")
+        parameters = {
+            "classifier__n_estimators": [200, 300, 500],
+            "classifier__max_depth": [5, 10, None],
+            "classifier__min_samples_split": [2, 5],
+        }
+        X_train, _, y_train, _ = self.preprocess_data()
+        grid = GridSearchCV(self.best_model, parameters, cv=5, scoring="roc_auc", n_jobs=-1)
+        grid.fit(X_train, y_train)
+        self.best_model = grid.best_estimator_
+        logging.info(f"Best Parameters : {grid.best_params_}")
 
-        "risk_level": risk
-    }
+    # ============================================================
+    # Model Evaluation
+    # ============================================================
 
-# ==========================================================
-# FEATURE IMPORTANCE
-# ==========================================================
+    def evaluate_model(self):
+        logging.info("Evaluating Best Model...")
+        prediction = self.best_model.predict(self.X_test)
+        probability = self.best_model.predict_proba(self.X_test)[:, 1]
+        self.metrics = {
+            "Accuracy": accuracy_score(self.y_test, prediction),
+            "Precision": precision_score(self.y_test, prediction),
+            "Recall": recall_score(self.y_test, prediction),
+            "F1 Score": f1_score(self.y_test, prediction),
+            "ROC AUC": roc_auc_score(self.y_test, probability),
+        }
+        print("\nClassification Report\n")
+        print(classification_report(self.y_test, prediction))
+        return prediction, probability
 
-def get_feature_importance(model):
+    # ============================================================
+    # Confusion Matrix
+    # ============================================================
 
-    rf_model = model.named_steps[
-        "classifier"
-    ]
+    def plot_confusion_matrix(self):
+        prediction = self.best_model.predict(self.X_test)
+        fig, ax = plt.subplots(figsize=(6, 5))
+        ConfusionMatrixDisplay.from_predictions(self.y_test, prediction, cmap="Blues", ax=ax)
+        plt.title("Confusion Matrix")
+        plt.show()
 
-    preprocessor = model.named_steps[
-        "preprocessor"
-    ]
+    # ============================================================
+    # ROC Curve
+    # ============================================================
 
-    feature_names = (
-        preprocessor
-        .get_feature_names_out()
-    )
+    def plot_roc_curve(self):
+        probability = self.best_model.predict_proba(self.X_test)[:, 1]
+        fig, ax = plt.subplots(figsize=(6, 5))
+        RocCurveDisplay.from_predictions(self.y_test, probability, ax=ax)
+        plt.title("ROC Curve")
+        plt.show()
 
-    importance = pd.DataFrame({
+    # ============================================================
+    # Feature Importance
+    # ============================================================
 
-        "Feature":
-            feature_names,
+    def feature_importance(self):
+        classifier = self.best_model.named_steps["classifier"]
+        preprocessor = self.best_model.named_steps["preprocessor"]
+        names = preprocessor.get_feature_names_out()
+        if hasattr(classifier, "feature_importances_"):
+            importance = classifier.feature_importances_
+        elif hasattr(classifier, "coef_"):
+            importance = np.abs(classifier.coef_[0])
+        else:
+            return
+        importance_df = (
+            pd.DataFrame({"Feature": names, "Importance": importance})
+            .sort_values("Importance", ascending=False)
+        )
+        plt.figure(figsize=(10, 8))
+        sns.barplot(data=importance_df.head(20), x="Importance", y="Feature")
+        plt.title("Top 20 Feature Importance")
+        plt.show()
+        return importance_df
 
-        "Importance":
-            rf_model.feature_importances_
-    })
+    # ============================================================
+    # SHAP
+    # ============================================================
 
-    importance = importance.sort_values(
-        by="Importance",
-        ascending=False
-    )
+    def shap_analysis(self):
+        try:
+            classifier = self.best_model.named_steps["classifier"]
+            preprocessor = self.best_model.named_steps["preprocessor"]
+            transformed = preprocessor.transform(self.X_test)
+            feature_names = preprocessor.get_feature_names_out()
+            if hasattr(classifier, "feature_importances_"):
+                explainer = shap.TreeExplainer(classifier)
+                shap_values = explainer.shap_values(transformed)
+                shap.summary_plot(shap_values, transformed, feature_names=feature_names)
+            else:
+                logging.info("SHAP skipped for this model.")
+        except Exception as e:
+            logging.warning(e)
 
-    return importance
+    # ============================================================
+    # Save Artifacts
+    # ============================================================
 
-# ==========================================================
-# SHAP SUMMARY
-# ==========================================================
+    def save_artifacts(self):
+        logging.info("Saving model artifacts...")
+        joblib.dump(self.best_model, os.path.join(MODEL_DIR, "churn_model.pkl"))
+        joblib.dump(self.X_test, os.path.join(MODEL_DIR, "X_test.pkl"))
+        joblib.dump(self.y_test, os.path.join(MODEL_DIR, "y_test.pkl"))
+        joblib.dump(self.feature_names, os.path.join(MODEL_DIR, "feature_names.pkl"))
+        joblib.dump(self.best_model_name, os.path.join(MODEL_DIR, "model_name.pkl"))
+        with open(os.path.join(MODEL_DIR, "metrics.json"), "w") as file:
+            json.dump(self.metrics, file, indent=4)
+        logging.info("Artifacts Saved Successfully.")
 
-def generate_shap_summary(
-        model,
-        sample_df
-):
+    # ============================================================
+    # Complete Pipeline
+    # ============================================================
 
-    transformed = model.named_steps[
-        "preprocessor"
-    ].transform(sample_df)
+    def run_pipeline(self):
+        self.load_dataset()
+        self.validate_dataset()
+        self.clean_dataset()
+        self.feature_engineering()
+        self.summary()
+        self.missing_values()
+        self.perform_eda()
+        self.train_models()
+        self.cross_validation()
+        self.hyperparameter_tuning()
+        self.evaluate_model()
+        self.plot_confusion_matrix()
+        self.plot_roc_curve()
+        self.feature_importance()
+        self.shap_analysis()
+        self.save_artifacts()
 
-    classifier = model.named_steps[
-        "classifier"
-    ]
-
-    explainer = shap.TreeExplainer(
-        classifier
-    )
-
-    shap_values = explainer.shap_values(
-        transformed
-    )
-
-    plt.figure(
-        figsize=(10, 6)
-    )
-
-    shap.summary_plot(
-        shap_values,
-        transformed,
-        show=False
-    )
-
-    plt.tight_layout()
-
-    plt.savefig(
-        "shap_summary.png",
-        dpi=300
-    )
-
-    plt.close()
-
-# ==========================================================
-# SHAP WATERFALL
-# ==========================================================
-
-def generate_shap_waterfall(
-        model,
-        sample_df
-):
-
-    transformed = model.named_steps[
-        "preprocessor"
-    ].transform(sample_df)
-
-    classifier = model.named_steps[
-        "classifier"
-    ]
-
-    explainer = shap.TreeExplainer(
-        classifier
-    )
-
-    shap_values = explainer(
-        transformed
-    )
-
-    shap.plots.waterfall(
-        shap_values[0],
-        show=False
-    )
-
-    plt.savefig(
-        "shap_waterfall.png",
-        dpi=300
-    )
-
-    plt.close()
-
-# ==========================================================
-# CROSS VALIDATION
-# ==========================================================
-
-def cross_validation(
-        model,
-        X,
-        y
-):
-
-    cv = StratifiedKFold(
-        n_splits=5,
-        shuffle=True,
-        random_state=42
-    )
-
-    scores = cross_val_score(
-        model,
-        X,
-        y,
-        cv=cv,
-        scoring="roc_auc"
-    )
-
-    print(
-        "\nAverage CV ROC-AUC:",
-        scores.mean()
-    )
-
-# ==========================================================
-# MAIN
-# ==========================================================
 
 if __name__ == "__main__":
-
-    train_model(
-        DATA_PATH
-    )
+    trainer = BankChurnTrainer(DATASET)
+    trainer.run_pipeline()
